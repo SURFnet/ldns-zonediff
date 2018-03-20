@@ -1,4 +1,4 @@
-# ldns-mergezone
+# ldns-zonediff
 
 Copyright (c) 2018 SURFnet bv
 http://www.surf.nl/en/about-surf/subsidiaries/surfnet
@@ -7,11 +7,12 @@ All rights reserved. This tool is distributed under a BSD-style license. For mor
 
 ## 1. INTRODUCTION
 
-This tool provides a simple interface 
+This tool can compute the difference between two DNS zone files and outputs the
+result to the standard output. By default, it will ignore DNSSEC records.
 
 ## 2. PREREQUISITES
 
-Building `ldns-mergezone`, requires the following dependencies to be installed:
+Building `ldns-zonediff`, requires the following dependencies to be installed:
 
  - POSIX-compliant build system
  - make
@@ -20,7 +21,7 @@ Building `ldns-mergezone`, requires the following dependencies to be installed:
 
 ## 3. BUILDING
 
-To build `ldns-mergezone` fresh from the repository, execute the following commands:
+To build `ldns-zonediff` fresh from the repository, execute the following commands:
 
     make
 
@@ -31,7 +32,7 @@ differences between the two zones. In standard mode, it will ignore DNSSEC
 records, such as keys, signatures and authenticated denial-of-existence
 records. For more information on other options, please run:
 
-    ldns-mergezone -h
+    ldns-zonediff -h
 
 # 5. CONTACT
 
