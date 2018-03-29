@@ -46,7 +46,7 @@ void usage(void)
 	printf("Copyright (C) 2018 SURFnet bv\n");
 	printf("All rights reserved (see LICENSE for more information)\n\n");
 	printf("Usage:\n");
-	printf("\tldns-zonediff [-S] [-K] [-N] [-o <origin>] <left-zone> <right-zone>\n");
+	printf("\tldns-zonediff [-S] [-K] [-N] [-k] [-o <origin>] <left-zone> <right-zone>\n");
 	printf("\tldns-zonediff -h\n");
 	printf("\n");
 	printf("\tldns-zonediff will output the differences between <left-zone> and\n");
@@ -59,7 +59,9 @@ void usage(void)
 	printf("\t     that do not include an explicit origin\n");
 	printf("\t-S   Include RRSIG records in the comparison\n");
 	printf("\t-K   Include DNSKEY records in the comparison\n");
-	printf("\t-N   Include NSEC(3) records in the comparision\n");
+	printf("\t-N   Include NSEC(3) records in the comparison\n");
+	printf("\t-k   Output knotc commands for insertion/removal\n");
+	printf("\t     of records\n");
 	printf("\n");
 	printf("\t-h   Print this help message\n");
 }
@@ -77,16 +79,17 @@ void cleanup_openssl(void)
 
 int main(int argc, char* argv[])
 {
-	char*	left_zone	= NULL;
-	char*	right_zone	= NULL;
-	char*	origin		= NULL;
-	int	c		= 0;
-	int	include_sigs	= 0;
-	int	include_keys	= 0;
-	int	include_nsecs	= 0;
-	int	rv		= 0;
+	char*	left_zone		= NULL;
+	char*	right_zone		= NULL;
+	char*	origin			= NULL;
+	int	c			= 0;
+	int	include_sigs		= 0;
+	int	include_keys		= 0;
+	int	include_nsecs		= 0;
+	int	output_knotc_commands	= 0;
+	int	rv			= 0;
 	
-	while ((c = getopt(argc, argv, "-SKNo:h")) != -1)
+	while ((c = getopt(argc, argv, "-SKNko:h")) != -1)
 	{
 		switch(c)
 		{
@@ -98,6 +101,9 @@ int main(int argc, char* argv[])
 			break;
 		case 'N':
 			include_nsecs = 1;
+			break;
+		case 'k':
+			output_knotc_commands = 1;
 			break;
 		case 'o':
 			origin = strdup(optarg);
@@ -136,7 +142,7 @@ int main(int argc, char* argv[])
 	}
 
 	/* Perform the comparision */
-	rv = do_zonediff(left_zone, right_zone, origin, include_sigs, include_keys, include_nsecs);
+	rv = do_zonediff(left_zone, right_zone, origin, include_sigs, include_keys, include_nsecs, output_knotc_commands);
 
 	cleanup_openssl();
 

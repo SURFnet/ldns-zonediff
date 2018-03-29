@@ -57,13 +57,13 @@ static int zd_dnsz_ll_ent_cmp(const dnsz_ll_ent* a, const dnsz_ll_ent* b)
 }
 
 /* Load a DNS zone from the specified file */
-static int zd_load_zone(const char* zone_name, const char* explicit_origin, const int include_sigs, const int include_keys, const int include_nsecs, dnsz_ll_ent** zone_ll, ldns_rr** soa)
+static int zd_load_zone(const char* zone_file, const char* explicit_origin, char** zone_name, const int include_sigs, const int include_keys, const int include_nsecs, const int output_knotc_commands, dnsz_ll_ent** zone_ll, ldns_rr** soa)
 {
-	assert(zone_name != NULL);
+	assert(zone_file != NULL);
 	assert(zone_ll != NULL);
 	assert(soa != NULL);
 
-	FILE*		zone_fd			= fopen(zone_name, "r");
+	FILE*		zone_fd			= fopen(zone_file, "r");
 	ldns_rr*	cur_rr			= NULL;
 	ldns_rdf*	origin			= NULL;
 	ldns_rdf*	prev			= NULL;
@@ -82,7 +82,7 @@ static int zd_load_zone(const char* zone_name, const char* explicit_origin, cons
 
 	if (zone_fd == NULL)
 	{
-		fprintf(stderr, "Failed to open zone file %s\n", zone_name);
+		fprintf(stderr, "Failed to open zone file %s\n", zone_file);
 
 		return errno;
 	}
@@ -105,7 +105,7 @@ static int zd_load_zone(const char* zone_name, const char* explicit_origin, cons
 			case LDNS_STATUS_SYNTAX_ORIGIN:
 				break;
 			default:
-				fprintf(stderr, "Error parsing zone file %s on line %d, aborting (%s)\n", zone_name, line_no, ldns_get_errorstr_by_id(rv));
+				fprintf(stderr, "Error parsing zone file %s on line %d, aborting (%s)\n", zone_file, line_no, ldns_get_errorstr_by_id(rv));
 				return rv;
 			}
 			
@@ -120,7 +120,7 @@ static int zd_load_zone(const char* zone_name, const char* explicit_origin, cons
 		{
 			if (*soa != NULL)
 			{
-				fprintf(stderr, "Error parsing zone file %s, encountered duplicate SOA record on line %d, aborting\n", zone_name, line_no);
+				fprintf(stderr, "Error parsing zone file %s, encountered duplicate SOA record on line %d, aborting\n", zone_file, line_no);
 
 				return EINVAL;
 			}
@@ -142,7 +142,7 @@ static int zd_load_zone(const char* zone_name, const char* explicit_origin, cons
 		/* Convert the RR to wire format for hashing */
 		if (ldns_rr2wire(&rr_wire, cur_rr, LDNS_SECTION_ANSWER, &rr_wire_size) != LDNS_STATUS_OK)
 		{
-			fprintf(stderr, "Error converting RR to wire format on line %d of %s, aborting\n", line_no, zone_name);
+			fprintf(stderr, "Error converting RR to wire format on line %d of %s, aborting\n", line_no, zone_file);
 
 			return EINVAL;
 		}
@@ -184,10 +184,18 @@ static int zd_load_zone(const char* zone_name, const char* explicit_origin, cons
 		count++;
 	}
 
-	printf("; Collected %d records from %d lines of zone data in %s\n", count, line_no, zone_name);
+	if (!output_knotc_commands)
+	{
+		printf("; Collected %d records from %d lines of zone data in %s\n", count, line_no, zone_file);
+	}
 
 	if (origin != NULL)
 	{
+		if (zone_name != NULL)
+		{
+			*zone_name = ldns_rdf2str(origin);
+		}
+
 		ldns_rdf_deep_free(origin);
 	}
 
@@ -221,23 +229,122 @@ static void zd_free_zone(dnsz_ll_ent** zone_ll)
 	*zone_ll = NULL;
 }
 
+/* Escape single quotes in a string (needed for knotc output) */
+static char* zd_escape(char* str)
+{
+	char	out_buf[4096]	= { 0 };
+	size_t	ofs		= 0;
+	size_t	i		= 0;
+
+	for (i = 0; i < strlen(str) && (4096-ofs > 0); i++)
+	{
+		if (str[i] == '\"')
+		{
+			snprintf(&out_buf[ofs], 4096-ofs, "\\\"");
+			ofs += 2;
+		}
+		else if (str[i] == '\\')
+		{
+			snprintf(&out_buf[ofs], 4096-ofs, "\\\\");
+			ofs += 2;
+		}
+		else
+		{
+			snprintf(&out_buf[ofs], 4096-ofs, "%c", str[i]);
+			ofs++;
+		}
+	}
+
+	free(str);
+
+	return strdup(out_buf);
+}
+
 /* Output an RR that changed */
-static void zd_output_rr(const ldns_rr* rr, int remove)
+static void zd_output_rr(const char* zone_name, const ldns_rr* rr, int remove, const int output_knotc_commands)
 {
 	assert(rr != NULL);
 
-	char*	rr_str	= ldns_rr2str(rr);
+	/* Collect string versions of RR data */
+	char*	owner		= ldns_rdf2str(ldns_rr_owner(rr));
+	char*	type		= ldns_rr_type2str(ldns_rr_get_type(rr));
+	char	ttl[32]		= { 0 };
+	char**	rdata		= (char**) malloc(ldns_rr_rd_count(rr) * sizeof(char*));
+	size_t	i		= 0;
+	size_t	ofs		= 0;
+	char	out_buf[4096]	= { 0 };
 
-	if (rr_str != NULL)
+	snprintf(ttl, 32, "%u", ldns_rr_ttl(rr));
+
+	for (i = 0; i < ldns_rr_rd_count(rr); i++)
 	{
-		printf("%s %s", remove ? "--" : "++", rr_str);
+		if (output_knotc_commands)
+		{
+			rdata[i] = zd_escape(ldns_rdf2str(ldns_rr_rdf(rr, i)));
+		}
+		else
+		{
+			rdata[i] = ldns_rdf2str(ldns_rr_rdf(rr, i));
+		}
+	}
 
-		free(rr_str);
+	/* Add owner name to RR string representation */
+	snprintf(&out_buf[0], 4096, "%s ", owner);
+	ofs += strlen(owner) + 1;
+	free(owner);
+
+	/* Add TTL */
+	snprintf(&out_buf[ofs], 4096-ofs, "%s ", ttl);
+	ofs += strlen(ttl) + 1;
+
+	/* Add type */
+	snprintf(&out_buf[ofs], 4096-ofs, "%s ", type);
+	ofs += strlen(type) + 1;
+	free(type);
+
+	if (output_knotc_commands)
+	{
+		snprintf(&out_buf[ofs], 4096-ofs, "\"");
+		ofs += 1;
+	}
+
+	/* Add RDATA */
+	for (i = 0; i < ldns_rr_rd_count(rr); i++)
+	{
+		snprintf(&out_buf[ofs], 4096-ofs, "%s ", rdata[i]);
+		ofs += strlen(rdata[i]) + 1;
+		free(rdata[i]);
+	}
+
+	free(rdata);
+	out_buf[ofs-1] = '\0';
+	ofs--;
+
+	if (output_knotc_commands)
+	{
+		snprintf(&out_buf[ofs], 4096-ofs, "\"");
+		ofs += 1;
+	}
+
+	if (output_knotc_commands)
+	{
+		if (remove)
+		{
+			printf("zone-unset %s %s\n", zone_name, out_buf);
+		}
+		else
+		{
+			printf("zone-set %s %s\n", zone_name, out_buf);
+		}
+	}
+	else
+	{
+		printf("%s %s", remove ? "--" : "++", out_buf);
 	}
 }
 
 /* Compute the difference between left_zone and right_zone and output to stdout */
-int do_zonediff(const char* left_zone, const char* right_zone, const char* origin, const int include_sigs, const int include_keys, const int include_nsecs)
+int do_zonediff(const char* left_zone, const char* right_zone, const char* origin, const int include_sigs, const int include_keys, const int include_nsecs, const int output_knotc_commands)
 {
 	dnsz_ll_ent*	left_zone_ll	= NULL;
 	dnsz_ll_ent*	right_zone_ll	= NULL;
@@ -245,13 +352,24 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 	ldns_rr*	right_soa	= NULL;
 	dnsz_ll_ent*	left_it		= NULL;
 	dnsz_ll_ent*	right_it	= NULL;
+	char*		zone_name	= NULL;
 	int		rv		= 0;
 	
-	if (((rv = zd_load_zone(left_zone, origin, include_sigs, include_keys, include_nsecs, &left_zone_ll, &left_soa)) != 0) ||
-	    ((rv = zd_load_zone(right_zone, origin, include_sigs, include_keys, include_nsecs, &right_zone_ll, &right_soa)) != 0))
+	if (((rv = zd_load_zone(left_zone, origin, &zone_name, include_sigs, include_keys, include_nsecs, output_knotc_commands, &left_zone_ll, &left_soa)) != 0) ||
+	    ((rv = zd_load_zone(right_zone, origin, NULL, include_sigs, include_keys, include_nsecs, output_knotc_commands, &right_zone_ll, &right_soa)) != 0))
 	{
 		return rv;
 	}
+
+	if (zone_name == NULL)
+	{
+		fprintf(stderr, "Failed to determine domain name from zone or explicit origin.\n");
+
+		return 1;
+	}
+
+	/* If outputting knotc commands, start a transaction */
+	printf("zone-begin %s\n", zone_name);
 
 	/* 
 	 * Perform the SOA comparison; we output a changed SOA if one of the
@@ -277,8 +395,8 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 			ldns_rdf_deep_free(old_soa);
 		}
 
-		zd_output_rr(left_soa, 1);
-		zd_output_rr(right_soa, 0);
+		zd_output_rr(zone_name, left_soa, 1, output_knotc_commands);
+		zd_output_rr(zone_name, right_soa, 0, output_knotc_commands);
 	}
 
 	ldns_rr_free(left_soa);
@@ -303,20 +421,20 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 			else if (lr_comp < 0)
 			{
 				/* Record from left zone is not in right zone */
-				zd_output_rr(left_it->rr, 1);
+				zd_output_rr(zone_name, left_it->rr, 1, output_knotc_commands);
 				left_it = left_it->next;
 			}
 			else
 			{
 				/* Record from right zone is not in left zone */
-				zd_output_rr(right_it->rr, 0);
+				zd_output_rr(zone_name, right_it->rr, 0, output_knotc_commands);
 				right_it = right_it->next;
 			}
 		}
 		else if (!left_it && right_it)
 		{
 			/* Additional records in right zone that are not present in the left zone */
-			zd_output_rr(right_it->rr, 0);
+			zd_output_rr(zone_name, right_it->rr, 0, output_knotc_commands);
 
 			/* Advance right iterator */
 			right_it = right_it->next;
@@ -324,7 +442,7 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 		else if (left_it && !right_it)
 		{
 			/* Additional records in the left zone that are not present in the right zone */
-			zd_output_rr(left_it->rr, 1);
+			zd_output_rr(zone_name, left_it->rr, 1, output_knotc_commands);
 
 			/* Advance left iterator */
 			left_it = left_it->next;
@@ -333,6 +451,11 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 
 	zd_free_zone(&left_zone_ll);
 	zd_free_zone(&right_zone_ll);
+
+	/* If outputting knotc commands, commit the transaction */
+	printf("zone-commit %s\n", zone_name);
+
+	free(zone_name);
 
 	return 0;
 }
