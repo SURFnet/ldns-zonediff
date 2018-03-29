@@ -339,7 +339,7 @@ static void zd_output_rr(const char* zone_name, const ldns_rr* rr, int remove, c
 	}
 	else
 	{
-		printf("%s %s", remove ? "--" : "++", out_buf);
+		printf("%s %s\n", remove ? "--" : "++", out_buf);
 	}
 }
 
@@ -369,7 +369,10 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 	}
 
 	/* If outputting knotc commands, start a transaction */
-	printf("zone-begin %s\n", zone_name);
+	if (output_knotc_commands)
+	{
+		printf("zone-begin %s\n", zone_name);
+	}
 
 	/* 
 	 * Perform the SOA comparison; we output a changed SOA if one of the
@@ -453,7 +456,10 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 	zd_free_zone(&right_zone_ll);
 
 	/* If outputting knotc commands, commit the transaction */
-	printf("zone-commit %s\n", zone_name);
+	if (output_knotc_commands)
+	{
+		printf("zone-commit %s\n", zone_name);
+	}
 
 	free(zone_name);
 
