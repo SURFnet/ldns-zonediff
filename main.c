@@ -88,6 +88,7 @@ int main(int argc, char* argv[])
 	int	include_nsecs		= 0;
 	int	output_knotc_commands	= 0;
 	int	rv			= 0;
+	int	diffcount		= 0;
 	
 	while ((c = getopt(argc, argv, "-SKNko:h")) != -1)
 	{
@@ -142,14 +143,21 @@ int main(int argc, char* argv[])
 	}
 
 	/* Perform the comparision */
-	rv = do_zonediff(left_zone, right_zone, origin, include_sigs, include_keys, include_nsecs, output_knotc_commands);
+	rv = do_zonediff(left_zone, right_zone, origin, include_sigs, include_keys, include_nsecs, output_knotc_commands, &diffcount);
 
 	cleanup_openssl();
 
 	free(left_zone);
 	free(right_zone);
 	free(origin);
-	
-	return rv;
+
+	if (rv != 0)
+	{
+		return 2;
+	}
+	else
+	{
+		return (diffcount == 0) ? 0 : 1;
+	}
 }
  

@@ -344,8 +344,12 @@ static void zd_output_rr(const char* zone_name, const ldns_rr* rr, int remove, c
 }
 
 /* Compute the difference between left_zone and right_zone and output to stdout */
-int do_zonediff(const char* left_zone, const char* right_zone, const char* origin, const int include_sigs, const int include_keys, const int include_nsecs, const int output_knotc_commands)
+int do_zonediff(const char* left_zone, const char* right_zone, const char* origin, const int include_sigs, const int include_keys, const int include_nsecs, const int output_knotc_commands, int* diffcount)
 {
+	assert(left_zone != NULL);
+	assert(right_zone != NULL);
+	assert(diffcount != NULL);
+
 	dnsz_ll_ent*	left_zone_ll	= NULL;
 	dnsz_ll_ent*	right_zone_ll	= NULL;
 	ldns_rr*	left_soa	= NULL;
@@ -400,6 +404,8 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 
 		zd_output_rr(zone_name, left_soa, 1, output_knotc_commands);
 		zd_output_rr(zone_name, right_soa, 0, output_knotc_commands);
+
+		(*diffcount)++;
 	}
 
 	ldns_rr_free(left_soa);
@@ -426,12 +432,16 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 				/* Record from left zone is not in right zone */
 				zd_output_rr(zone_name, left_it->rr, 1, output_knotc_commands);
 				left_it = left_it->next;
+
+				(*diffcount)++;
 			}
 			else
 			{
 				/* Record from right zone is not in left zone */
 				zd_output_rr(zone_name, right_it->rr, 0, output_knotc_commands);
 				right_it = right_it->next;
+
+				(*diffcount)++;
 			}
 		}
 		else if (!left_it && right_it)
@@ -441,6 +451,8 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 
 			/* Advance right iterator */
 			right_it = right_it->next;
+
+			(*diffcount)++;
 		}
 		else if (left_it && !right_it)
 		{
@@ -449,6 +461,8 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 
 			/* Advance left iterator */
 			left_it = left_it->next;
+
+			(*diffcount)++;
 		}
 	}
 
