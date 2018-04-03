@@ -19,6 +19,14 @@ Building `ldns-zonediff`, requires the following dependencies to be installed:
  - libldns >= 1.6.17
  - OpenSSL >= 1.0.1
 
+**On Ubuntu,** you may find `libldns-dev` lacking `ldns-config`, and possibly more.
+You can repackage ldns with `contrib/pkg-ldns.sh` before building.  This script
+additionally requires
+
+  - debhelper (for Ubuntu)
+  - dpkg-dev (for Ubuntu)
+  - dh-make (for Ubuntu)
+
 ## 3. BUILDING
 
 To build `ldns-zonediff` fresh from the repository, execute the following commands:
