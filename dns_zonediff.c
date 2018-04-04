@@ -391,13 +391,30 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 	    (ldns_rdf_compare(ldns_rr_rdf(left_soa, 5), ldns_rr_rdf(right_soa, 5)) != 0) ||  /* SOA expire changed? */
 	    (ldns_rdf_compare(ldns_rr_rdf(left_soa, 6), ldns_rr_rdf(right_soa, 6)) != 0))    /* SOA minimum changed? */
 	{
-		/* Ensure the SOA we say should be added has the highest SOA */
-		if (ldns_rdf_compare(ldns_rr_rdf(left_soa, 2), ldns_rr_rdf(right_soa, 2)) > 0)
+		/* Check if the left SOA serial is higher than, or equal to the right SOA serial */
+		if (ldns_rdf_compare(ldns_rr_rdf(left_soa, 2), ldns_rr_rdf(right_soa, 2)) >= 0)
 		{
-			ldns_rdf*	new_soa	= ldns_rdf_clone(ldns_rr_rdf(left_soa, 2));
-			ldns_rdf*	old_soa	= NULL;
+			uint32_t	soa_serial	= 0;
+			ldns_rdf*	old_soa		= NULL;
 
-			old_soa = ldns_rr_set_rdf(right_soa, new_soa, 2);
+			/* Check if the left SOA serial is higher than the right SOA, if so,
+			   replace the right SOA serial with the one from the left */
+			if (ldns_rdf_compare(ldns_rr_rdf(left_soa, 2), ldns_rr_rdf(right_soa, 2)) >= 0)
+			{
+				ldns_rdf*	new_soa	= ldns_rdf_clone(ldns_rr_rdf(left_soa, 2));
+				ldns_rdf*	old_soa	= NULL;
+
+				old_soa = ldns_rr_set_rdf(right_soa, new_soa, 2);
+
+				ldns_rdf_deep_free(old_soa);
+			}
+
+			/* Ensure that the SOA serial that is output is higher than the
+			   old left SOA serial */
+			soa_serial = ldns_rdf2native_int32(ldns_rr_rdf(right_soa, 2));
+			soa_serial++;
+
+			old_soa = ldns_rr_set_rdf(right_soa, ldns_native2rdf_int32(LDNS_RDF_TYPE_INT32, soa_serial), 2);
 
 			ldns_rdf_deep_free(old_soa);
 		}
