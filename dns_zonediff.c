@@ -372,8 +372,9 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 		return 1;
 	}
 
-	/* If outputting knotc commands, start a transaction */
-	if (output_knotc_commands)
+	/* If outputting knotc commands and no contextual transation,
+	 * start a transaction for the diff */
+	if (output_knotc_commands == 1)
 	{
 		printf("zone-begin %s\n", zone_name);
 	}
@@ -486,8 +487,9 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 	zd_free_zone(&left_zone_ll);
 	zd_free_zone(&right_zone_ll);
 
-	/* If outputting knotc commands, commit the transaction */
-	if (output_knotc_commands)
+	/* If outputting knotc commands and no contextual transaction,
+	 * commit the transaction now */
+	if (output_knotc_commands == 1)
 	{
 		printf("zone-commit %s\n", zone_name);
 	}
