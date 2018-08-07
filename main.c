@@ -46,7 +46,7 @@ void usage(void)
 	printf("Copyright (C) 2018 SURFnet bv\n");
 	printf("All rights reserved (see LICENSE for more information)\n\n");
 	printf("Usage:\n");
-	printf("\tldns-zonediff [-S] [-K] [-N] [-k] [-o <origin>] <left-zone> <right-zone>\n");
+	printf("\tldns-zonediff [-S] [-K] [-N] [-k] [-k] [-o <origin>] <left-zone> <right-zone>\n");
 	printf("\tldns-zonediff -h\n");
 	printf("\n");
 	printf("\tldns-zonediff will output the differences between <left-zone> and\n");
@@ -61,7 +61,7 @@ void usage(void)
 	printf("\t-K   Include DNSKEY records in the comparison\n");
 	printf("\t-N   Include NSEC(3) records in the comparison\n");
 	printf("\t-k   Output knotc commands for insertion/removal\n");
-	printf("\t     of records\n");
+	printf("\t     of records; twice to embed in contextual transaction\n");
 	printf("\n");
 	printf("\t-h   Print this help message\n");
 }
@@ -104,7 +104,8 @@ int main(int argc, char* argv[])
 			include_nsecs = 1;
 			break;
 		case 'k':
-			output_knotc_commands = 1;
+			// May be used twice; second form suppresses zone-begin, -commit
+			output_knotc_commands++;
 			break;
 		case 'o':
 			origin = strdup(optarg);
