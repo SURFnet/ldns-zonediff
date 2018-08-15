@@ -365,6 +365,21 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 		return rv;
 	}
 
+	/* Check if both zones have a SOA record, if not, then the zone is invalid */
+	if (left_soa == NULL)
+	{
+		fprintf(stderr, "Left zone does not have a valid SOA record, please check if the zone file %s is valid.\n", left_zone);
+
+		return 1;
+	}
+
+	if (right_soa == NULL)
+	{
+		fprintf(stderr, "Right zone does not have a valid SOA record, please check if the zone file %s is valid.\n", right_zone);
+
+		return 1;
+	}
+
 	if (zone_name == NULL)
 	{
 		fprintf(stderr, "Failed to determine domain name from zone or explicit origin.\n");
