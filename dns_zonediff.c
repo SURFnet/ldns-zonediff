@@ -56,6 +56,12 @@ static int zd_dnsz_ll_ent_cmp(const dnsz_ll_ent* a, const dnsz_ll_ent* b)
 	return memcmp(a->rr_hash, b->rr_hash, RR_HASH_SIZE);
 }
 
+/* A missing routine in ldns, written out for symmetry */
+static uint32_t ldnsplus_rr_get_ttl(ldns_rr *rr)
+{
+	return rr->_ttl;
+}
+
 /* Load a DNS zone from the specified file */
 static int zd_load_zone(const char* zone_file, const char* explicit_origin, char** zone_name, const int include_sigs, const int include_keys, const int include_nsecs, const int output_knotc_commands, dnsz_ll_ent** zone_ll, ldns_rr** soa)
 {
@@ -65,6 +71,7 @@ static int zd_load_zone(const char* zone_file, const char* explicit_origin, char
 
 	FILE*		zone_fd			= fopen(zone_file, "r");
 	ldns_rr*	cur_rr			= NULL;
+	ldns_rr*	pre_rr			= NULL;
 	ldns_rdf*	origin			= NULL;
 	ldns_rdf*	prev			= NULL;
 	uint8_t*	rr_wire			= NULL;
@@ -139,8 +146,18 @@ static int zd_load_zone(const char* zone_file, const char* explicit_origin, char
 			continue;
 		}
 
+		/* Clone the RR with a fixed TTL so it will not impact hash sorting */
+		pre_rr = ldns_rr_clone(cur_rr);
+
+		if (pre_rr == NULL) {
+			ldns_rr_free(cur_rr);
+			return ENOMEM;
+		}
+
+		ldns_rr_set_ttl(pre_rr, LDNS_DEFAULT_TTL);
+
 		/* Convert the RR to wire format for hashing */
-		if (ldns_rr2wire(&rr_wire, cur_rr, LDNS_SECTION_ANSWER, &rr_wire_size) != LDNS_STATUS_OK)
+		if (ldns_rr2wire(&rr_wire, pre_rr, LDNS_SECTION_ANSWER, &rr_wire_size) != LDNS_STATUS_OK)
 		{
 			fprintf(stderr, "Error converting RR to wire format on line %d of %s, aborting\n", line_no, zone_file);
 
@@ -167,6 +184,9 @@ static int zd_load_zone(const char* zone_file, const char* explicit_origin, char
 
 			return EINVAL;
 		}
+
+		ldns_rr_free(pre_rr);
+		pre_rr = NULL;
 
 		free(rr_wire);
 		rr_wire = NULL;
@@ -450,51 +470,62 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 
 	while (left_it || right_it)
 	{
+		dnsz_ll_ent*	entry2del = NULL;
+		dnsz_ll_ent*	entry2add = NULL;
 		if (left_it && right_it)
 		{
 			int lr_comp = memcmp(left_it->rr_hash, right_it->rr_hash, RR_HASH_SIZE);
 
 			if (lr_comp == 0)
 			{
-				/* Left and right are in sync, advance both */
+				/* The TTL may still differ, because these were not hashed */
+				if (ldnsplus_rr_get_ttl(left_it->rr) != ldnsplus_rr_get_ttl(right_it->rr))
+				{
+					entry2del = left_it;
+					entry2add = right_it;
+				}
+				/* Left and right hashes are in sync, advance both */
 				left_it = left_it->next;
 				right_it = right_it->next;
 			}
 			else if (lr_comp < 0)
 			{
 				/* Record from left zone is not in right zone */
-				zd_output_rr(zone_name, left_it->rr, 1, output_knotc_commands);
+				entry2del = left_it;
 				left_it = left_it->next;
-
-				(*diffcount)++;
 			}
 			else
 			{
 				/* Record from right zone is not in left zone */
-				zd_output_rr(zone_name, right_it->rr, 0, output_knotc_commands);
+				entry2add = right_it;
 				right_it = right_it->next;
-
-				(*diffcount)++;
 			}
 		}
 		else if (!left_it && right_it)
 		{
 			/* Additional records in right zone that are not present in the left zone */
-			zd_output_rr(zone_name, right_it->rr, 0, output_knotc_commands);
+			entry2add = right_it;
 
 			/* Advance right iterator */
 			right_it = right_it->next;
 
-			(*diffcount)++;
 		}
 		else if (left_it && !right_it)
 		{
 			/* Additional records in the left zone that are not present in the right zone */
-			zd_output_rr(zone_name, left_it->rr, 1, output_knotc_commands);
+			entry2del = left_it;
 
 			/* Advance left iterator */
 			left_it = left_it->next;
+		}
 
+		/* Delete before add -- either for most changes, both for TTL changes */
+		if (entry2del != NULL) {
+			zd_output_rr(zone_name, entry2del->rr, 1, output_knotc_commands);
+			(*diffcount)++;
+		}
+		if (entry2add != NULL) {
+			zd_output_rr(zone_name, entry2add->rr, 0, output_knotc_commands);
 			(*diffcount)++;
 		}
 	}
