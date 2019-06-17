@@ -61,6 +61,7 @@ void usage(void)
 	printf("\t-K   Include DNSKEY records in the comparison\n");
 	printf("\t-N   Include NSEC(3) records in the comparison\n");
 	printf("\t-d   Suppress DS records in the comparison\n");
+	printf("\t-s   Suppress SOA serial number differences\n");
 	printf("\t-k   Output knotc commands for insertion/removal\n");
 	printf("\t     of records; twice to embed in contextual transaction\n");
 	printf("\n");
@@ -88,11 +89,12 @@ int main(int argc, char* argv[])
 	int	include_keys		= 0;
 	int	include_nsecs		= 0;
 	int	include_delegs		= 1;
+	int	include_serial		= 1;
 	int	output_knotc_commands	= 0;
 	int	rv			= 0;
 	int	diffcount		= 0;
 	
-	while ((c = getopt(argc, argv, "-SKNdko:h")) != -1)
+	while ((c = getopt(argc, argv, "-SKNdsko:h")) != -1)
 	{
 		switch(c)
 		{
@@ -107,6 +109,9 @@ int main(int argc, char* argv[])
 			break;
 		case 'd':
 			include_delegs = 0;
+			break;
+		case 's':
+			include_serial = 0;
 			break;
 		case 'k':
 			// May be used twice; second form suppresses zone-begin, -commit
@@ -149,7 +154,7 @@ int main(int argc, char* argv[])
 	}
 
 	/* Perform the comparision */
-	rv = do_zonediff(left_zone, right_zone, origin, include_sigs, include_keys, include_nsecs, include_delegs, output_knotc_commands, &diffcount);
+	rv = do_zonediff(left_zone, right_zone, origin, include_sigs, include_keys, include_nsecs, include_delegs, include_serial, output_knotc_commands, &diffcount);
 
 	cleanup_openssl();
 
