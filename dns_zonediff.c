@@ -63,7 +63,7 @@ static uint32_t ldnsplus_rr_get_ttl(ldns_rr *rr)
 }
 
 /* Load a DNS zone from the specified file */
-static int zd_load_zone(const char* zone_file, const char* explicit_origin, char** zone_name, const int include_sigs, const int include_keys, const int include_nsecs, const int output_knotc_commands, dnsz_ll_ent** zone_ll, ldns_rr** soa)
+static int zd_load_zone(const char* zone_file, const char* explicit_origin, char** zone_name, const int include_sigs, const int include_keys, const int include_nsecs, const int include_delegs, const int output_knotc_commands, dnsz_ll_ent** zone_ll, ldns_rr** soa)
 {
 	assert(zone_file != NULL);
 	assert(zone_ll != NULL);
@@ -138,6 +138,7 @@ static int zd_load_zone(const char* zone_file, const char* explicit_origin, char
 
 		if (((ldns_rr_get_type(cur_rr) == LDNS_RR_TYPE_RRSIG) && !include_sigs) ||
 		    ((ldns_rr_get_type(cur_rr) == LDNS_RR_TYPE_DNSKEY) && !include_keys) ||
+		    ((ldns_rr_get_type(cur_rr) == LDNS_RR_TYPE_DS) && !include_delegs) ||
 		    ((ldns_rr_get_type(cur_rr) == LDNS_RR_TYPE_NSEC) && !include_nsecs) ||
 		    ((ldns_rr_get_type(cur_rr) == LDNS_RR_TYPE_NSEC3) && !include_nsecs) ||
 		    ((ldns_rr_get_type(cur_rr) == LDNS_RR_TYPE_NSEC3PARAM) && !include_nsecs))
@@ -364,7 +365,7 @@ static void zd_output_rr(const char* zone_name, const ldns_rr* rr, int remove, c
 }
 
 /* Compute the difference between left_zone and right_zone and output to stdout */
-int do_zonediff(const char* left_zone, const char* right_zone, const char* origin, const int include_sigs, const int include_keys, const int include_nsecs, const int output_knotc_commands, int* diffcount)
+int do_zonediff(const char* left_zone, const char* right_zone, const char* origin, const int include_sigs, const int include_keys, const int include_nsecs, const int include_delegs, const int output_knotc_commands, int* diffcount)
 {
 	assert(left_zone != NULL);
 	assert(right_zone != NULL);
@@ -379,8 +380,8 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 	char*		zone_name	= NULL;
 	int		rv		= 0;
 	
-	if (((rv = zd_load_zone(left_zone, origin, &zone_name, include_sigs, include_keys, include_nsecs, output_knotc_commands, &left_zone_ll, &left_soa)) != 0) ||
-	    ((rv = zd_load_zone(right_zone, origin, NULL, include_sigs, include_keys, include_nsecs, output_knotc_commands, &right_zone_ll, &right_soa)) != 0))
+	if (((rv = zd_load_zone(left_zone, origin, &zone_name, include_sigs, include_keys, include_nsecs, include_delegs, output_knotc_commands, &left_zone_ll, &left_soa)) != 0) ||
+	    ((rv = zd_load_zone(right_zone, origin, NULL, include_sigs, include_keys, include_nsecs, include_delegs, output_knotc_commands, &right_zone_ll, &right_soa)) != 0))
 	{
 		return rv;
 	}

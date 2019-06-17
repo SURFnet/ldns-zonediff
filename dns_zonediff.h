@@ -31,7 +31,7 @@
 #ifndef _LDNS_ZONEDIFF_DNS_ZONEDIFF_H
 #define _LDNS_ZONEDIFF_DNS_ZONEDIFF_H
 
-int do_zonediff(const char* left_zone, const char* right_zone, const char* origin, const int include_sigs, const int include_keys, const int include_nsecs, const int output_knotc_commands, int* diffcount);
+int do_zonediff(const char* left_zone, const char* right_zone, const char* origin, const int include_sigs, const int include_keys, const int include_nsecs, const int include_delegs, const int output_knotc_commands, int* diffcount);
 
 #endif /* !_LDNS_ZONEDIFF_DNS_ZONEDIFF_H */
  
