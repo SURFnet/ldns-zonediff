@@ -72,7 +72,6 @@ static int zd_load_zone(const char* zone_file, const char* explicit_origin, char
 	FILE*		zone_fd			= fopen(zone_file, "r");
 	ldns_rr*	cur_rr			= NULL;
 	ldns_rr*	pre_rr			= NULL;
-	ldns_rdf*	rdf			= NULL;
 	ldns_rdf*	origin			= NULL;
 	ldns_rdf*	prev			= NULL;
 	uint8_t*	rr_wire			= NULL;
@@ -133,21 +132,7 @@ static int zd_load_zone(const char* zone_file, const char* explicit_origin, char
 				return EINVAL;
 			}
 
-			/* If the serial number is to be ignored, set it to 0 */
-
-			if (!include_serial) {
-				rdf = ldns_rr_rdf(cur_rr, 2);
-
-				if (rdf == NULL) {
-					ldns_rr_free(cur_rr);
-					return EINVAL;
-				}
-
-				memset(ldns_rdf_data(rdf), 0, 4);
-			}
-
 			*soa = cur_rr;
-
 			continue;
 		}
 
@@ -437,7 +422,7 @@ int do_zonediff(const char* left_zone, const char* right_zone, const char* origi
 	 */
 	if ((ldns_rdf_compare(ldns_rr_rdf(left_soa, 0), ldns_rr_rdf(right_soa, 0)) != 0) ||  /* SOA MNAME changed? */
 	    (ldns_rdf_compare(ldns_rr_rdf(left_soa, 1), ldns_rr_rdf(right_soa, 1)) != 0) ||  /* SOA RNAME changed? */
-	    (ldns_rdf_compare(ldns_rr_rdf(left_soa, 2), ldns_rr_rdf(right_soa, 2)) < 0) ||   /* SOA serial right higher than left? */
+	    (include_serial && (ldns_rdf_compare(ldns_rr_rdf(left_soa, 2), ldns_rr_rdf(right_soa, 2)) < 0)) ||   /* SOA serial right higher than left? */
 	    (ldns_rdf_compare(ldns_rr_rdf(left_soa, 3), ldns_rr_rdf(right_soa, 3)) != 0) ||  /* SOA refresh changed? */
 	    (ldns_rdf_compare(ldns_rr_rdf(left_soa, 4), ldns_rr_rdf(right_soa, 4)) != 0) ||  /* SOA retry changed? */
 	    (ldns_rdf_compare(ldns_rr_rdf(left_soa, 5), ldns_rr_rdf(right_soa, 5)) != 0) ||  /* SOA expire changed? */
